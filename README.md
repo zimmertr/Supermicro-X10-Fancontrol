@@ -4,7 +4,11 @@
 
 This script is used to dynamically control the fan duty cycle (speed) on a Supermicro X10 server by calculating the current percentage of the maximum operating temperature of a CPU and setting the duty cycle of the fans to the equivalent percentage of their maximum speed. 
 
-For example, if your CPU's maximum operating temperature is 79°C, and the current reading is 40 is is at ~51% of the threshold. The fan speeds will then be set to 51% accordingly. If the desired duty cycle results in a lower RPM than the Lower Critical threshold of the fans in the pool, the Lower Critical treshold will be used as the duty cycle instead to avoid the BMC overriding the configuraiton. To find this value, use `ipmitool sensor | grep FAN | awk '{print $11}'`
+For example, if your CPU's maximum operating temperature is 79°C, and the current sensor reading is 40°C, it is at ~51% of the maximum. The fan speeds will then be set to 51% accordingly. If the current CPU temperature exceeds the desired CPU threshold temperature, the CPU threshold duty cycle will be used instead. If the desired duty cycle results in a lower RPM than the Lower Critical threshold of the fans in the pool, the Lower Critical treshold will be used as the duty cycle instead.
+
+To find the maximum operating temperature and the ideal threshold temperature of a CPU, consult it's production specifications. To find the Lower Critical threshold of the fans, use `ipmitool sensor | grep FAN` and review the values in the 6th column. To the find correlated duty cycle value, use `ipmitool raw 0x30 0x70 0x66 0x01 0x00 0x##` with progressively lower integers until the set duty cycle drops the fan RPMs below the Lower Critical threshold and the BMC overrides the configuration. If you wish, you can customize these thresholds to set a lower or higher value with `ipmitool sensor thresh "FAN#" lower ### ### ###`. I use `100 300 500` with a pool of Noctua A12x25 fans and my server is virtually silent. 
+
+**Be careful with this, and don't blame me if you melt down your server.**
 
 <hr>
 
@@ -12,20 +16,22 @@ For example, if your CPU's maximum operating temperature is 79°C, and the curre
 
 | Package      | Description                                                  |
 | ------------ | ------------------------------------------------------------ |
-| `jq`         | Used to parse the output of `lm-sensors` for a specific sensor value |
-| `lm-sensors` | Used to collect data on sensors                              |
-| `ipmitool`   | Used to get and set fan duty cycle configurations            |
+| `jq`         | Used to parse the output of `lm-sensors` for a specific sensor value. |
+| `lm-sensors` | Used to collect data on sensors.                             |
+| `ipmitool`   | Used to get and set fan duty cycle configurations.           |
 
 <hr>
 
 ## Configuration
 
-| Variable           | Description                                                |
-| ------------------ | ---------------------------------------------------------- |
-| `SLEEP_INTERVAL`   | The amount of time to sleep between script executions      |
-| `CPU_MAX_TEMP`     | The maximum operating temperature of your CPU              |
-| `FAN_LC_THRESHOLD` | The lowest Lower Critical value of fans in the system pool |
-| `SENSOR_JSONPATH`  | The JSONPath to the desired sensor to monitor              |
+| Variable                       | Description                                                  |
+| ------------------------------ | ------------------------------------------------------------ |
+| `SLEEP_INTERVAL`               | The amount of time to sleep between script executions.       |
+| `SENSOR_JSONPATH`              | The JSONPath for the sensor to monitor.                      |
+| `CPU_TCASE`                    | The maximum operating temperature of the CPU. Usually found in the product specifications. |
+| `CPU_THRESHOLD_TEMP`           | The threshold temperature where the fan curve should be overriden and set to `CPU_THRESHOLD_DUTY_CYCLE`. |
+| `CPU_THRESHOLD_DUTY_CYCLE`     | The duty cycle to use when the current CPU temperature exceeds the `CPU_THRESHOLD_TEMP`. |
+| `FAN_LOWER_CRITICAL_THRESHOLD` | The lowest Lower Critical value of fans in the system pool.  |
 
 <hr>
 
