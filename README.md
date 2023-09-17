@@ -1,17 +1,39 @@
-# IPMITool Fancontrol
+# Supermicro X10 Fancontrol
 
 ## Summary
 
-This script can be used to dynamically control the CPU/System fan duty cycle on a Proxmox server. It works by retrieving the current average CPU temperature and calculating the percentage of the maximum operating temperature and setting the fan "duty cycle" speed to an equivalent percentage. 
+This script is used to dynamically control the fan duty cycle (speed) on a Supermicro X10 server by calculating the current percentage of the maximum operating temperature of a CPU and setting the duty cycle of the fans to the equivalent percentage of their maximum speed. 
 
-EG: If your current average CPU Temperature is 41, and the maximum operating temperature is 79, then the fan duty cycle speed will be set to (41 / 79 = 51%) of the maximum hexadecimal value, 64, (32) 
+For example, if your CPU's maximum operating temperature is 79°C, and the current reading is 40 is is at ~51% of the threshold. The fan speeds will then be set to 51% accordingly. If the desired duty cycle results in a lower RPM than the Lower Critical threshold of the fans in the pool, the Lower Critical treshold will be used as the duty cycle instead to avoid the BMC overriding the configuraiton.
 
-## Instructions
+<hr>
 
-1. Install requirements:
-   1. `apt-install jq lm-sensors ipmitool`
-   2. `sensors-detect`
-2. Install the script
-   1. `cp fancontrol.sh /usr/bin/fancontrol.sh`
-   2. cp `fanctronl.service /etc/systemd/system/fancontrol.service`
-   3. `systemctl enable --now fancontrol`
+## Requirements
+
+| Package      | Description                                                  |
+| ------------ | ------------------------------------------------------------ |
+| `jq`         | Used to parse the output of `lm-sensors` for a specific sensor value |
+| `lm-sensors` | Used to collect data on sensors                              |
+| `ipmitool`   | Used to get and set fan duty cycle configurations            |
+
+<hr>
+
+## Configuration
+
+| Variable           | Description                                                  |
+| ------------------ | ------------------------------------------------------------ |
+| `SLEEP_INTERVAL`   | The amount of time to sleep between script executions        |
+| `CPU_MAX_TEMP`     | The maximum operating temperature of your CPU                |
+| `FAN_LC_THRESHOLD` | The lowest Lower Critical value of fans in the system pool <br />To find: `ipmitool sensor | grep FAN | awk '{print $11}'` |
+| `SENSOR_JSONPATH`  | The JSONPath to the desired sensor to monitor                |
+
+<hr>
+
+## Installation
+
+```bash
+cp fancontrol /usr/bin/fancontrol
+chmod +x /usr/bin/fancontrol
+cp fancontrol.service /etc/systemd/system/fancontrol.service
+systemctl enable --now fancontrol
+```

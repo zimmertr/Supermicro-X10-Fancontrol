@@ -1,8 +1,8 @@
 [Unit]
-Description=Fan Control Script
+Description=Dynamically control the fan duty cycle of a Supermicro X10 server
 
 [Service]
-ExecStart=/usr/bin/fancontrol.sh
+ExecStart=/usr/bin/fancontrol
 Restart=always
 
 [Install]

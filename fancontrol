@@ -1,0 +1,40 @@
+#!/bin/bash
+
+SLEEP_INTERVAL=5
+CPU_MAX_TEMP=79
+FAN_LC_THRESHOLD=25
+SENSOR_JSONPATH='.["coretemp-isa-0000"]["Package id 0"].temp1_input'
+
+calculate_duty_cycle() {
+    current_cpu_temp=$(sensors -j | jq -r "$SENSOR_JSONPATH")
+    current_duty_cycle=$(ipmitool raw 0x30 0x70 0x66 0x00 0x00 | sed 's/^ *//g')
+    cpu_percent_of_max=$(( (current_cpu_temp * 100) / CPU_MAX_TEMP ))
+    desired_duty_cycle=$(( (cpu_percent_of_max * 64) / 100 ))
+
+    if [[ $desired_duty_cycle -lt $FAN_LC_THRESHOLD ]]; then
+        echo "WARN - Desired duty cycle below LC threshold"
+        desired_duty_cycle=$FAN_LC_THRESHOLD
+    fi
+}
+
+set_duty_cycle() {
+    echo "-----$(date)-----"
+    echo "INFO - Current temperature: $current_cpu_temp/$CPU_MAX_TEMP°C ($cpu_percent_of_max%)"
+    echo "INFO - Current duty cycle:  $current_duty_cycle/64"
+    echo "INFO - Setting duty cycle:  $desired_duty_cycle/64"
+
+    ipmitool raw 0x30 0x70 0x66 0x01 0x00 0x$desired_duty_cycle
+}
+
+main() {
+    echo "INFO - Setting fan control mode to full"
+    ipmitool raw 0x30 0x45 0x01 0x01
+
+    while true; do
+        calculate_duty_cycle
+        set_duty_cycle
+        sleep $SLEEP_INTERVAL
+    done
+}
+
+main "$@"
