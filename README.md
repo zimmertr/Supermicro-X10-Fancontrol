@@ -37,3 +37,40 @@ chmod +x /usr/bin/fancontrol
 cp fancontrol.service /etc/systemd/system/fancontrol.service
 systemctl enable --now fancontrol
 ```
+
+<hr>
+
+## Example Output
+
+```bash
+$> journalctl -xefu fancontrol
+
+Sep 17 12:25:59 earth fancontrol[181096]: -----Sun Sep 17 12:25:59 PM PDT 2023-----
+Sep 17 12:25:59 earth fancontrol[181096]: INFO - Current temperature: 37/79°C (46%)
+Sep 17 12:25:59 earth fancontrol[181096]: INFO - Current duty cycle:  29/64
+Sep 17 12:25:59 earth fancontrol[181096]: INFO - Setting duty cycle:  29/64
+Sep 17 12:26:04 earth fancontrol[181096]: -----Sun Sep 17 12:26:04 PM PDT 2023-----
+Sep 17 12:26:04 earth fancontrol[181096]: INFO - Current temperature: 40/79°C (50%)
+Sep 17 12:26:04 earth fancontrol[181096]: INFO - Current duty cycle:  29/64
+Sep 17 12:26:04 earth fancontrol[181096]: INFO - Setting duty cycle:  32/64
+Sep 17 12:26:10 earth fancontrol[181096]: -----Sun Sep 17 12:26:10 PM PDT 2023-----
+Sep 17 12:26:10 earth fancontrol[181096]: INFO - Current temperature: 46/79°C (58%)
+Sep 17 12:26:10 earth fancontrol[181096]: INFO - Current duty cycle:  32/64
+Sep 17 12:26:10 earth fancontrol[181096]: INFO - Setting duty cycle:  37/64
+Sep 17 12:26:16 earth fancontrol[181096]: -----Sun Sep 17 12:26:16 PM PDT 2023-----
+Sep 17 12:26:16 earth fancontrol[181096]: INFO - Current temperature: 47/79°C (59%)
+Sep 17 12:26:16 earth fancontrol[181096]: INFO - Current duty cycle:  37/64
+Sep 17 12:26:16 earth fancontrol[181096]: INFO - Setting duty cycle:  37/64
+Sep 17 12:26:23 earth fancontrol[181096]: -----Sun Sep 17 12:26:23 PM PDT 2023-----
+Sep 17 12:26:23 earth fancontrol[181096]: INFO - Current temperature: 48/79°C (60%)
+Sep 17 12:26:23 earth fancontrol[181096]: INFO - Current duty cycle:  37/64
+Sep 17 12:26:23 earth fancontrol[181096]: INFO - Setting duty cycle:  38/64
+Sep 17 12:26:29 earth fancontrol[181096]: -----Sun Sep 17 12:26:29 PM PDT 2023-----
+Sep 17 12:26:29 earth fancontrol[181096]: INFO - Current temperature: 49/79°C (62%)
+Sep 17 12:26:29 earth fancontrol[181096]: INFO - Current duty cycle:  38/64
+Sep 17 12:26:29 earth fancontrol[181096]: INFO - Setting duty cycle:  39/64
+Sep 17 12:26:36 earth fancontrol[181096]: -----Sun Sep 17 12:26:36 PM PDT 2023-----
+Sep 17 12:26:36 earth fancontrol[181096]: INFO - Current temperature: 50/79°C (63%)
+Sep 17 12:26:36 earth fancontrol[181096]: INFO - Current duty cycle:  39/64
+Sep 17 12:26:36 earth fancontrol[181096]: INFO - Setting duty cycle:  40/64
+```
