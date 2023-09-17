@@ -21,7 +21,7 @@ set_duty_cycle() {
         echo "WARN - Current CPU temp exceeds critical threshold ($current_cpu_temp/$CPU_THRESHOLD_TEMP)°C"
         desired_duty_cycle=$CPU_THRESHOLD_DUTY_CYCLE
     elif [[ $desired_duty_cycle -lt $FAN_LOWER_CRITICAL_THRESHOLD ]]; then
-        echo "WARN - Desired duty cycle below LC threshold"
+        echo "WARN - Desired duty cycle below LC threshold ($desired_duty_cycle/$FAN_LOWER_CRITICAL_THRESHOLD)"
         desired_duty_cycle=$FAN_LOWER_CRITICAL_THRESHOLD
     fi
 
