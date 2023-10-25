@@ -30,6 +30,7 @@ set_duty_cycle() {
     echo "INFO - Setting duty cycle:  $desired_duty_cycle/64"
 
     ipmitool raw 0x30 0x70 0x66 0x01 0x00 0x$desired_duty_cycle
+    ipmitool raw 0x30 0x70 0x66 0x01 0x01 0x$desired_duty_cycle
 }
 
 main() {
