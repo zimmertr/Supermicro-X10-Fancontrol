@@ -9,23 +9,29 @@ CPU_THRESHOLD_DUTY_CYCLE=64
 FAN_LOWER_CRITICAL_THRESHOLD=20
 
 calculate_duty_cycle() {
-    current_cpu_temp=$(sensors -j | jq -r "$SENSOR_JSONPATH")
+    current_cpu_temp=$(sensors -j 2>/dev/null | jq -r "${SENSOR_JSONPATH} // null")
+    if [[ -z "$current_cpu_temp" || "$current_cpu_temp" == "null" ]]; then
+        echo "WARN - Failed to read CPU temp, assuming max Tcase ($CPU_TCASE°C)"
+        current_cpu_temp=$CPU_TCASE
+    fi
+    current_cpu_temp_int=$(printf "%.0f" "$current_cpu_temp")
+
     current_duty_cycle=$(ipmitool raw 0x30 0x70 0x66 0x00 0x00 | sed 's/^ *//g')
-    cpu_percent_of_max=$(( (current_cpu_temp * 100) / CPU_TCASE ))
+    cpu_percent_of_max=$(( (current_cpu_temp_int * 100) / CPU_TCASE ))
     desired_duty_cycle=$(( (cpu_percent_of_max * 64) / 100 ))
 }
 
 set_duty_cycle() {
     echo "-----$(date)-----"
-    if [[ $current_cpu_temp -gt $CPU_THRESHOLD_TEMP ]]; then
-        echo "WARN - Current CPU temp exceeds critical threshold ($current_cpu_temp/$CPU_THRESHOLD_TEMP)°C"
+    if [[ $current_cpu_temp_int -gt $CPU_THRESHOLD_TEMP ]]; then
+        echo "WARN - Current CPU temp exceeds critical threshold ($current_cpu_temp_int/$CPU_THRESHOLD_TEMP)°C"
         desired_duty_cycle=$CPU_THRESHOLD_DUTY_CYCLE
     elif [[ $desired_duty_cycle -lt $FAN_LOWER_CRITICAL_THRESHOLD ]]; then
         echo "WARN - Desired duty cycle below LC threshold ($desired_duty_cycle/$FAN_LOWER_CRITICAL_THRESHOLD)"
         desired_duty_cycle=$FAN_LOWER_CRITICAL_THRESHOLD
     fi
 
-    echo "INFO - Current temperature: $current_cpu_temp/$CPU_TCASE°C ($cpu_percent_of_max%)"
+    echo "INFO - Current temperature: $current_cpu_temp_int/$CPU_TCASE°C ($cpu_percent_of_max%)"
     echo "INFO - Current duty cycle:  $current_duty_cycle/64"
     echo "INFO - Setting duty cycle:  $desired_duty_cycle/64"
 
