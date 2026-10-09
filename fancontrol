@@ -2,52 +2,182 @@
 
 SLEEP_INTERVAL=5
 SENSOR_JSONPATH='.["coretemp-isa-0000"]["Package id 0"].temp1_input'
+GPU_SENSOR_JSONPATH='.["amdgpu-pci-0500"].junction.temp2_input'
 
 CPU_TCASE=79
 CPU_THRESHOLD_TEMP=65
 CPU_THRESHOLD_DUTY_CYCLE=64
 FAN_LOWER_CRITICAL_THRESHOLD=20
+FAN_MAX_DUTY_CYCLE=64
 
-calculate_duty_cycle() {
-    current_cpu_temp=$(sensors -j 2>/dev/null | jq -r "${SENSOR_JSONPATH} // null")
-    if [[ -z "$current_cpu_temp" || "$current_cpu_temp" == "null" ]]; then
-        echo "WARN - Failed to read CPU temp, assuming max Tcase ($CPU_TCASE°C)"
+# GPU hotspot curve as "temp:duty" points, linearly interpolated between points.
+# Below the first point the GPU adds no demand; at or above the last it requests the last duty.
+GPU_CURVE="65:24 75:32 85:44 90:64"
+GPU_FAULT_DUTY_CYCLE=64
+
+# Readings outside this range are treated as sensor faults rather than real temperatures
+TEMP_MIN_VALID=10
+TEMP_MAX_VALID=125
+
+# A persistent fault would otherwise repeat the same warning every poll
+WARN_REPEAT_INTERVAL=300
+
+# The BMC reads the duty byte as hex, so 64 is 0x64 (100%) and 20 is 0x20 (32%).
+# Duty cycles stay decimal integers in 0-64 so they map monotonically onto that scale.
+
+is_valid_temp() {
+    [[ "$1" =~ ^[0-9]+(\.[0-9]+)?$ ]] || return 1
+    local temp_int
+    temp_int=$(printf "%.0f" "$1")
+    (( temp_int >= TEMP_MIN_VALID && temp_int <= TEMP_MAX_VALID ))
+}
+
+warn_limited() {
+    local key=$1 level=$2 message=$3
+    local last_var="last_warn_$key"
+    if [[ -z "${!last_var}" ]] || (( SECONDS - ${!last_var} >= WARN_REPEAT_INTERVAL )); then
+        echo "$level - $message"
+        printf -v "$last_var" '%s' "$SECONDS"
+    fi
+}
+
+clear_warn() {
+    local key=$1 message=$2
+    local last_var="last_warn_$key"
+    if [[ -n "${!last_var}" ]]; then
+        echo "INFO - $message"
+        unset "$last_var"
+    fi
+}
+
+gpu_curve_duty() {
+    local temp=$1 point point_temp point_duty prev_temp prev_duty duty=0
+    for point in $GPU_CURVE; do
+        point_temp=${point%%:*}
+        point_duty=${point##*:}
+        if (( temp < point_temp )); then
+            if [[ -n "$prev_temp" ]]; then
+                duty=$(( prev_duty + (temp - prev_temp) * (point_duty - prev_duty) / (point_temp - prev_temp) ))
+            fi
+            break
+        fi
+        duty=$point_duty
+        prev_temp=$point_temp
+        prev_duty=$point_duty
+    done
+    echo "$duty"
+}
+
+calculate_cpu_duty_cycle() {
+    current_cpu_temp=$(jq -r "${SENSOR_JSONPATH} // null" <<< "$sensors_json" 2>/dev/null)
+    if ! is_valid_temp "$current_cpu_temp"; then
+        warn_limited cpu WARN "Failed to read CPU temp (got '${current_cpu_temp}'), assuming max Tcase (${CPU_TCASE}°C)"
         current_cpu_temp=$CPU_TCASE
+    else
+        clear_warn cpu "CPU temp reading restored"
     fi
     current_cpu_temp_int=$(printf "%.0f" "$current_cpu_temp")
 
-    current_duty_cycle=$(ipmitool raw 0x30 0x70 0x66 0x00 0x00 | sed 's/^ *//g')
     cpu_percent_of_max=$(( (current_cpu_temp_int * 100) / CPU_TCASE ))
-    desired_duty_cycle=$(( (cpu_percent_of_max * 64) / 100 ))
+    cpu_duty_cycle=$(( (cpu_percent_of_max * 64) / 100 ))
+}
+
+# The GPU powers down when idle and sensors then reports no junction value. That null
+# means "asleep, nothing to cool"; a value that is present but unusable is a fault.
+calculate_gpu_duty_cycle() {
+    current_gpu_temp=$(jq -r "${GPU_SENSOR_JSONPATH} // null" <<< "$sensors_json" 2>/dev/null)
+    gpu_fault=false
+    if [[ "$current_gpu_temp" == "null" ]]; then
+        warn_limited gpu WARN "GPU hotspot not reported (GPU suspended?), no GPU fan demand"
+        gpu_temp_display="offline"
+        gpu_duty_cycle=0
+    elif ! is_valid_temp "$current_gpu_temp"; then
+        warn_limited gpu WARN "Invalid GPU hotspot reading '${current_gpu_temp}', requesting $GPU_FAULT_DUTY_CYCLE/64"
+        gpu_temp_display="invalid"
+        gpu_duty_cycle=$GPU_FAULT_DUTY_CYCLE
+        gpu_fault=true
+    else
+        clear_warn gpu "GPU hotspot reading restored"
+        current_gpu_temp_int=$(printf "%.0f" "$current_gpu_temp")
+        gpu_temp_display="${current_gpu_temp_int}°C"
+        gpu_duty_cycle=$(gpu_curve_duty "$current_gpu_temp_int")
+    fi
+}
+
+calculate_duty_cycle() {
+    echo "-----$(date)-----"
+    # One sensors call per poll keeps the CPU and GPU readings from the same instant
+    sensors_json=$(sensors -j 2>/dev/null)
+    calculate_cpu_duty_cycle
+    calculate_gpu_duty_cycle
+
+    current_duty_cycle=$(ipmitool raw 0x30 0x70 0x66 0x00 0x00 2>/dev/null | sed 's/^ *//g')
+    current_duty_cycle=${current_duty_cycle:-unknown}
+
+    if (( gpu_duty_cycle > cpu_duty_cycle )); then
+        desired_duty_cycle=$gpu_duty_cycle
+        duty_cycle_source="gpu curve"
+    else
+        desired_duty_cycle=$cpu_duty_cycle
+        duty_cycle_source="cpu curve"
+    fi
 }
 
 set_duty_cycle() {
-    echo "-----$(date)-----"
     if [[ $current_cpu_temp_int -gt $CPU_THRESHOLD_TEMP ]]; then
         echo "WARN - Current CPU temp exceeds critical threshold ($current_cpu_temp_int/$CPU_THRESHOLD_TEMP)°C"
         desired_duty_cycle=$CPU_THRESHOLD_DUTY_CYCLE
+        duty_cycle_source="OVERRIDE: CPU above threshold"
+    elif [[ $gpu_fault == true ]]; then
+        desired_duty_cycle=$GPU_FAULT_DUTY_CYCLE
+        duty_cycle_source="OVERRIDE: GPU telemetry fault"
     elif [[ $desired_duty_cycle -lt $FAN_LOWER_CRITICAL_THRESHOLD ]]; then
         echo "WARN - Desired duty cycle below LC threshold ($desired_duty_cycle/$FAN_LOWER_CRITICAL_THRESHOLD)"
         desired_duty_cycle=$FAN_LOWER_CRITICAL_THRESHOLD
+        duty_cycle_source="LC minimum"
+    fi
+    if [[ $desired_duty_cycle -gt $FAN_MAX_DUTY_CYCLE ]]; then
+        desired_duty_cycle=$FAN_MAX_DUTY_CYCLE
     fi
 
-    echo "INFO - Current temperature: $current_cpu_temp_int/$CPU_TCASE°C ($cpu_percent_of_max%)"
+    echo "INFO - CPU temperature:     $current_cpu_temp_int/${CPU_TCASE}°C (${cpu_percent_of_max}%)"
+    echo "INFO - GPU hotspot:         $gpu_temp_display"
+    echo "INFO - CPU requested duty:  $cpu_duty_cycle/64"
+    echo "INFO - GPU requested duty:  $gpu_duty_cycle/64"
     echo "INFO - Current duty cycle:  $current_duty_cycle/64"
-    echo "INFO - Setting duty cycle:  $desired_duty_cycle/64"
+    echo "INFO - Setting duty cycle:  $desired_duty_cycle/64 ($duty_cycle_source)"
 
-    ipmitool raw 0x30 0x70 0x66 0x01 0x00 0x$desired_duty_cycle
-    ipmitool raw 0x30 0x70 0x66 0x01 0x01 0x$desired_duty_cycle
+    local zone
+    for zone in 0x00 0x01; do
+        if ipmitool raw 0x30 0x70 0x66 0x01 $zone 0x$desired_duty_cycle; then
+            clear_warn "bmc_$zone" "BMC accepted duty cycle for fan zone $zone again"
+        else
+            warn_limited "bmc_$zone" ERROR "BMC rejected duty cycle $desired_duty_cycle/64 for fan zone $zone"
+        fi
+    done
+}
+
+set_fan_mode() {
+    if ipmitool raw 0x30 0x45 0x01 0x01; then
+        echo "INFO - Set fan control mode to full"
+        fan_mode_set=true
+    else
+        warn_limited fan_mode ERROR "Failed to set fan control mode to full, retrying every poll"
+    fi
 }
 
 main() {
-    echo "INFO - Setting fan control mode to full"
-    ipmitool raw 0x30 0x45 0x01 0x01
+    set_fan_mode
 
     while true; do
+        [[ $fan_mode_set == true ]] || set_fan_mode
         calculate_duty_cycle
         set_duty_cycle
         sleep $SLEEP_INTERVAL
     done
 }
 
-main "$@"
+# Sourcing the script (as the tests do) loads the functions without starting the loop
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

@@ -1,0 +1,65 @@
+{
+  "coretemp-isa-0000": {
+    "Adapter": "ISA adapter",
+    "Package id 0": {
+      "temp1_input": 45.000000,
+      "temp1_max": 83.000000,
+      "temp1_crit": 93.000000,
+      "temp1_crit_alarm": 0.000000
+    },
+    "Core 0": {
+      "temp2_input": 40.000000,
+      "temp2_max": 83.000000,
+      "temp2_crit": 93.000000,
+      "temp2_crit_alarm": 0.000000
+    },
+    "Core 1": {
+      "temp3_input": 40.000000,
+      "temp3_max": 83.000000,
+      "temp3_crit": 93.000000,
+      "temp3_crit_alarm": 0.000000
+    }
+  },
+  "amdgpu-pci-0500": {
+    "Adapter": "PCI adapter",
+    "vddgfx": {
+      "in0_input": 0.029000
+    },
+    "fan1": {
+      "fan1_input": 1069.000000,
+      "fan1_min": 0.000000,
+      "fan1_max": 5500.000000
+    },
+    "edge": {
+      "temp1_input": 36.000000,
+      "temp1_crit": 110.000000,
+      "temp1_crit_hyst": -273.150000,
+      "temp1_emergency": 115.000000
+    },
+    "junction": {
+      "temp2_input": 37.000000,
+      "temp2_crit": 110.000000,
+      "temp2_crit_hyst": -273.150000,
+      "temp2_emergency": 115.000000
+    },
+    "mem": {
+      "temp3_input": 38.000000,
+      "temp3_crit": 108.000000,
+      "temp3_crit_hyst": -273.150000,
+      "temp3_emergency": 113.000000
+    },
+    "PPT": {
+      "power1_average": 15.000000,
+      "power1_cap": 300.000000
+    },
+    "pwm1": {
+      "pwm1": 25.500000
+    },
+    "sclk": {
+      "freq1_input": 0.000000
+    },
+    "mclk": {
+      "freq2_input": 96000000.000000
+    }
+  }
+}
