@@ -9,7 +9,7 @@ This repo took a trimmed set of the files a new project starts with (zimmertr/yg
 - Never run the script, `ipmitool` or anything else against a real server without TJ's okay. A bad duty cycle can overheat it. Work in a fresh clone in the session's scratchpad, never in TJ's checkout, and never push to main.
 - The README is TJ's: keep it accurate and in his voice, and never restructure it.
 - zimmertr/Bootstrap-Proxmox downloads `fancontrol` and `fancontrol.service` from `main`, so a merge here reaches the server the next time that role runs.
-- CI is zimmertr/yggdrasil's `pr-title` and `lint` modules, pinned by commit SHA with the version beside it. Dependabot bumps the pin, and a patch or minor merges itself after three days. The PR title is `type(scope): summary`.
+- CI is zimmertr/yggdrasil's `pr-title` and `lint` modules, pinned by commit SHA with the version beside it. Renovate bumps the pin, and a patch or minor merges itself. The PR title is `type(scope): summary`.
 
 ## Issues
 
